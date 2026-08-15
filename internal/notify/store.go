@@ -59,9 +59,23 @@ func New() *Store { return &Store{data: make(map[string]*Notification)} }
 
 func trim(s string) string { return strings.TrimSpace(s) }
 
+// cloneTime 返回 t 指向时间的独立副本；t 为 nil 时返回 nil。
+// 用于隔离 *time.Time 字段，避免调用方通过外部指针修改穿透到内部存储。
+func cloneTime(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	c := *t
+	return &c
+}
+
 // clone 返回通知的快照，避免调用方修改内部状态。
+// *time.Time 字段会被深拷贝，保证快照与内部存储互不影响。
 func (n *Notification) clone() *Notification {
 	c := *n
+	c.SentAt = cloneTime(n.SentAt)
+	c.ReadAt = cloneTime(n.ReadAt)
+	c.ScheduleAt = cloneTime(n.ScheduleAt)
 	return &c
 }
 
@@ -102,7 +116,7 @@ func (s *Store) Create(in CreateInput, now time.Time) (*Notification, error) {
 		Priority:   in.Priority,
 		Status:     StatusPending,
 		CreatedAt:  now,
-		ScheduleAt: in.ScheduleAt,
+		ScheduleAt: cloneTime(in.ScheduleAt),
 	}
 	s.data[in.ID] = n
 	return n.clone(), nil
